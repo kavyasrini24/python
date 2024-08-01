@@ -1,0 +1,170 @@
+The error indicates that the `src` module cannot be found. This is likely due to the way the Python path is set up when running `pytest`. 
+
+To resolve this, you need to ensure that the `src` directory is included in the Python path when running your tests. One way to do this is by creating a `conftest.py` file in the `tests` directory to configure the path.
+
+### Step-by-Step Solution
+
+1. **Create a `conftest.py` File:**
+
+Create a file named `conftest.py` in your `tests` directory (i.e., `src/tests/conftest.py`).
+
+2. **Modify `conftest.py`:**
+
+Add the following code to `conftest.py` to include the `src` directory in the Python path:
+
+```python
+import sys
+import os
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+```
+
+### Updated Directory Structure
+
+```
+project/
+│
+├── run.py
+└── src/
+    ├── __init__.py
+    ├── config.py
+    ├── interpreter.py
+    ├── model.py
+    ├── parser.py
+    └── utils.py
+    └── tests/
+        ├── __init__.py
+        ├── conftest.py
+        ├── test_config.py
+        ├── test_interpreter.py
+        ├── test_model.py
+        ├── test_parser.py
+        ├── test_utils.py
+        └── test_data/
+            ├── cbc-osb-common.xml
+            ├── cbc-osb-dev-tire.xml
+            ├── cbc-osb-dev01.xml
+            ├── cbc-service-cbc-osb-common.xml
+            ├── cbc-service-cbc-osb-dev-tire.xml
+            └── cbc-service-cbc-osb-dev01.xml
+            └── sample.properties
+            └── application.properties
+            └── environment.properties
+```
+
+### Running `pytest`
+
+Now, when you run `pytest`, it should be able to find the `src` module. Navigate to the project directory and use the following command:
+
+```sh
+pytest src/tests
+```
+
+This command will discover and run all the test cases in the `src/tests` directory with the `src` module path properly configured.
+
+### Ensure the Test Imports are Correct
+
+Make sure the import statements in your test files are correct and consistent. Here is a quick review of the import statements:
+
+### `test_config.py`
+
+```python
+import pytest
+from src.config import read_properties_file, load_xml_files
+import os
+
+@pytest.fixture(scope="module")
+def xml_files_directory():
+    return 'src/test/test_data'
+
+def test_read_properties_file():
+    properties = read_properties_file('src/test/test_data/sample.properties')
+    assert properties['some.property'] == 'some.value'
+    assert properties['another.property'] == 'another.value'
+
+def test_load_xml_files(xml_files_directory):
+    xml_files = load_xml_files(xml_files_directory)
+    assert len(xml_files) == 6  # Assuming there are 6 XML files in the directory
+    for file_name, root in xml_files.items():
+        assert root is not None
+        assert root.tag == 'root'  # Adjust this check based on your XML structure
+```
+
+### `test_parser.py`
+
+```python
+import pytest
+from src.parser import parse_properties_file
+from src.config import read_properties_file, load_xml_files
+
+@pytest.fixture
+def properties():
+    return read_properties_file('src/test/test_data/sample.properties')
+
+@pytest.fixture
+def xml_files():
+    return load_xml_files('src/test/test_data')
+
+def test_parse_properties_file(properties, xml_files):
+    problems = parse_properties_file(properties, xml_files)
+    assert problems == []  # Assuming no problems
+    assert 'some.property' in properties
+    assert properties['some.property'] == 'expected_value'  # Adjust based on actual expected value
+```
+
+### `test_model.py`
+
+```python
+import pytest
+import os
+from src.model import Model
+
+@pytest.fixture
+def model():
+    return Model('src/test/test_data/application.properties', 'src/test/test_data')
+
+def test_load_properties(model):
+    properties = model.properties
+    assert 'some.property' in properties
+    assert properties['some.property'] == 'some.value'
+
+def test_load_xml_files(model):
+    xml_files = model.xml_files
+    for file_name in os.listdir('src/test/test_data'):
+        if file_name.endswith('.xml'):
+            assert file_name in xml_files
+            assert xml_files[file_name] is not None
+```
+
+### `test_utils.py`
+
+```python
+import pytest
+from src.utils import output_mode
+import os
+
+def test_output_mode_console(capsys):
+    properties = {
+        'key1': 'value1',
+        'key2': 'value2'
+    }
+    output_mode(1, properties)
+    captured = capsys.readouterr()
+    assert 'key1: value1' in captured.out
+    assert 'key2: value2' in captured.out
+
+def test_output_mode_file(tmpdir):
+    properties = {
+        'key1': 'value1',
+        'key2': 'value2'
+    }
+    output_path = tmpdir.join('output_properties.properties')
+    output_mode(2, properties)
+    with open('output_properties.properties', 'r') as f:
+        content = f.read()
+        assert 'key1=value1' in content
+        assert 'key2=value2' in content
+    os.remove('output_properties.properties')  # Clean up the file
+```
+
+With these adjustments, running `pytest` should work correctly.
