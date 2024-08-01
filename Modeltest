@@ -1,0 +1,41 @@
+import sys
+import os
+import pytest
+from xml.etree.ElementTree import Element, SubElement, ElementTree
+from src.model import Model
+
+# Ensure the src package can be found
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+@pytest.fixture
+def sample_xml_files(tmpdir):
+    xml_content_1 = Element('root')
+    SubElement(xml_content_1, 'item', name='key1').text = 'value1'
+    SubElement(xml_content_1, 'item', name='key2').text = 'value2'
+    tree_1 = ElementTree(xml_content_1)
+    file_1 = tmpdir.join("sample1.xml")
+    tree_1.write(file_1)
+
+    xml_content_2 = Element('root')
+    SubElement(xml_content_2, 'item', name='key3').text = 'value3'
+    SubElement(xml_content_2, 'item', name='key4').text = 'value4'
+    tree_2 = ElementTree(xml_content_2)
+    file_2 = tmpdir.join("sample2.xml")
+    tree_2.write(file_2)
+
+    return tmpdir
+
+def test_model_load_xml_files(sample_xml_files):
+    model = Model(str(sample_xml_files))
+    xml_files = model.xml_files
+
+    assert 'sample1.xml' in xml_files
+    assert 'sample2.xml' in xml_files
+
+    root_1 = xml_files['sample1.xml']
+    assert root_1.find("item[@name='key1']").text == 'value1'
+    assert root_1.find("item[@name='key2']").text == 'value2'
+
+    root_2 = xml_files['sample2.xml']
+    assert root_2.find("item[@name='key3']").text == 'value3'
+    assert root_2.find("item[@name='key4']").text == 'value4'
