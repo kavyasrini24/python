@@ -1,0 +1,49 @@
+import pytest
+import os
+from src.utils import output_properties, log_missing_properties
+
+@pytest.fixture
+def sample_properties():
+    return {
+        "property1": "value1",
+        "property2": "value2",
+        "property3": "value3"
+    }
+
+def test_output_properties_console(capfd, sample_properties):
+    # Test mode 1: print to console
+    output_properties(1, sample_properties)
+    captured = capfd.readouterr()
+    assert "property1: value1" in captured.out
+    assert "property2: value2" in captured.out
+    assert "property3: value3" in captured.out
+
+def test_output_properties_file(tmpdir, sample_properties):
+    # Test mode 2: write to file
+    output_file = tmpdir.join("output_properties.properties")
+    output_properties(2, sample_properties)
+    
+    # Check if the file is created
+    assert output_file.check(file=1)
+    
+    # Check the content of the file
+    with open(output_file, 'r') as f:
+        content = f.read()
+        assert "property1=value1" in content
+        assert "property2=value2" in content
+        assert "property3=value3" in content
+
+def test_log_missing_properties(tmpdir, sample_properties):
+    # Log missing properties
+    log_file = tmpdir.join("missing_properties.log")
+    log_missing_properties(sample_properties)
+    
+    # Check if the file is created
+    assert log_file.check(file=1)
+    
+    # Check the content of the file
+    with open(log_file, 'r') as f:
+        content = f.read()
+        assert "property1=value1" in content
+        assert "property2=value2" in content
+        assert "property3=value3" in content
