@@ -1,0 +1,106 @@
+Here's how you can write `pytest` test cases for the `read_properties_file` function.
+
+### Test Cases
+
+The tests will check various scenarios including:
+
+1. A standard properties file with multiple key-value pairs.
+2. A properties file with comments and empty lines.
+3. A properties file with no key-value pairs.
+4. A properties file with keys that have no values.
+
+### Test File: `test_config.py`
+
+```python
+import pytest
+import os
+from src.config import read_properties_file
+
+@pytest.fixture
+def sample_properties_file(tmpdir):
+    content = """
+    # This is a comment
+    key1=value1
+    key2=value2
+    
+    key3=value3
+    # Another comment
+    key4=value4
+    """
+    file = tmpdir.join("sample.properties")
+    file.write(content)
+    return file
+
+@pytest.fixture
+def properties_with_comments_and_empty_lines(tmpdir):
+    content = """
+    # This is a comment
+    key1=value1
+    
+    # Another comment
+    
+    key2=value2
+    
+    key3=value3
+    
+    """
+    file = tmpdir.join("properties_with_comments_and_empty_lines.properties")
+    file.write(content)
+    return file
+
+@pytest.fixture
+def empty_properties_file(tmpdir):
+    content = ""
+    file = tmpdir.join("empty.properties")
+    file.write(content)
+    return file
+
+@pytest.fixture
+def properties_with_no_values(tmpdir):
+    content = """
+    key1=
+    key2=
+    """
+    file = tmpdir.join("properties_with_no_values.properties")
+    file.write(content)
+    return file
+
+def test_read_properties_file(sample_properties_file):
+    properties = read_properties_file(str(sample_properties_file))
+    assert properties['key1'] == 'value1'
+    assert properties['key2'] == 'value2'
+    assert properties['key3'] == 'value3'
+    assert properties['key4'] == 'value4'
+    assert len(properties) == 4
+
+def test_read_properties_with_comments_and_empty_lines(properties_with_comments_and_empty_lines):
+    properties = read_properties_file(str(properties_with_comments_and_empty_lines))
+    assert properties['key1'] == 'value1'
+    assert properties['key2'] == 'value2'
+    assert properties['key3'] == 'value3'
+    assert len(properties) == 3
+
+def test_read_empty_properties_file(empty_properties_file):
+    properties = read_properties_file(str(empty_properties_file))
+    assert len(properties) == 0
+
+def test_read_properties_with_no_values(properties_with_no_values):
+    properties = read_properties_file(str(properties_with_no_values))
+    assert properties['key1'] == ''
+    assert properties['key2'] == ''
+    assert len(properties) == 2
+```
+
+### Explanation
+
+1. **Fixtures**: 
+   - `sample_properties_file`: Creates a sample properties file with multiple key-value pairs.
+   - `properties_with_comments_and_empty_lines`: Creates a properties file with comments and empty lines.
+   - `empty_properties_file`: Creates an empty properties file.
+   - `properties_with_no_values`: Creates a properties file with keys that have no values.
+
+2. **Tests**:
+   - `test_read_properties_file`: Tests reading a standard properties file.
+   - `test_read_properties_with_comments_and_empty_lines`: Tests reading a properties file that includes comments and empty lines.
+   - `test_read_empty_properties_file`: Tests reading an empty properties file.
+   -
