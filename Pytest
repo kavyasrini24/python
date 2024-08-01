@@ -1,0 +1,153 @@
+Sure, I can help you set up `pytest` test cases for this program. Below are the test cases for each module, including configuration, parser, and model.
+
+### `test_config.py`
+
+```python
+import pytest
+from src.config import read_properties_file, load_xml_files
+import os
+
+def test_read_properties_file():
+    properties = read_properties_file('src/test/test_data/sample.properties')
+    assert properties['some.property'] == 'some.value'
+    assert properties['another.property'] == 'another.value'
+
+def test_load_xml_files():
+    xml_files = load_xml_files('src/test/test_data')
+    assert len(xml_files) == 6  # Assuming there are 6 XML files in the directory
+    for file_name, root in xml_files.items():
+        assert root is not None
+        assert root.tag == 'root'  # Adjust this check based on your XML structure
+
+@pytest.fixture(scope="module")
+def xml_files_directory():
+    return 'src/test/test_data'
+
+def test_load_xml_files(xml_files_directory):
+    xml_files = load_xml_files(xml_files_directory)
+    for file_name in os.listdir(xml_files_directory):
+        if file_name.endswith('.xml'):
+            assert file_name in xml_files
+            assert xml_files[file_name] is not None
+```
+
+### `test_parser.py`
+
+```python
+import pytest
+from src.parser import parse_properties_file
+from src.config import read_properties_file, load_xml_files
+
+@pytest.fixture
+def properties():
+    return read_properties_file('src/test/test_data/sample.properties')
+
+@pytest.fixture
+def xml_files():
+    return load_xml_files('src/test/test_data')
+
+def test_parse_properties_file(properties, xml_files):
+    problems = parse_properties_file(properties, xml_files)
+    assert problems == []  # Assuming no problems
+    assert 'some.property' in properties
+    assert properties['some.property'] == 'expected_value'  # Adjust based on actual expected value
+```
+
+### `test_model.py`
+
+```python
+import pytest
+import os
+from src.model import Model
+
+@pytest.fixture
+def model():
+    return Model('src/test/test_data/application.properties', 'src/test/test_data')
+
+def test_load_properties(model):
+    properties = model.properties
+    assert 'some.property' in properties
+    assert properties['some.property'] == 'some.value'
+
+def test_load_xml_files(model):
+    xml_files = model.xml_files
+    for file_name in os.listdir('src/test/test_data'):
+        if file_name.endswith('.xml'):
+            assert file_name in xml_files
+            assert xml_files[file_name] is not None
+```
+
+### `test_utils.py`
+
+```python
+import pytest
+from src.utils import output_mode
+import os
+
+def test_output_mode_console(capsys):
+    properties = {
+        'key1': 'value1',
+        'key2': 'value2'
+    }
+    output_mode(1, properties)
+    captured = capsys.readouterr()
+    assert 'key1: value1' in captured.out
+    assert 'key2: value2' in captured.out
+
+def test_output_mode_file(tmpdir):
+    properties = {
+        'key1': 'value1',
+        'key2': 'value2'
+    }
+    output_path = tmpdir.join('output_properties.properties')
+    output_mode(2, properties)
+    with open('output_properties.properties', 'r') as f:
+        content = f.read()
+        assert 'key1=value1' in content
+        assert 'key2=value2' in content
+    os.remove('output_properties.properties')  # Clean up the file
+```
+
+### Directory Structure
+
+Ensure your directory structure looks like this:
+
+```
+project/
+│
+├── run.py
+└── src/
+    ├── __init__.py
+    ├── config.py
+    ├── interpreter.py
+    ├── model.py
+    ├── parser.py
+    └── utils.py
+    └── test/
+        ├── __init__.py
+        ├── test_config.py
+        ├── test_interpreter.py
+        ├── test_model.py
+        ├── test_parser.py
+        ├── test_utils.py
+        └── test_data/
+            ├── cbc-osb-common.xml
+            ├── cbc-osb-dev-tire.xml
+            ├── cbc-osb-dev01.xml
+            ├── cbc-service-cbc-osb-common.xml
+            ├── cbc-service-cbc-osb-dev-tire.xml
+            └── cbc-service-cbc-osb-dev01.xml
+            └── sample.properties
+            └── application.properties
+            └── environment.properties
+```
+
+### Running Tests with `pytest`
+
+To run the tests, navigate to the project directory and use the following command:
+
+```sh
+pytest src/test
+```
+
+This command will discover and run all the test cases in the `src/test` directory. The tests are designed to dynamically load and verify properties and XML files without hardcoding specific file names, ensuring flexibility and robustness.

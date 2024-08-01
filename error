@@ -1,0 +1,28 @@
+__________________________________________ ERROR collecting src/tests/test_config.py __________________________________________
+ImportError while importing test module 'C:\Users\G88729\Desktop\tdd\tdd\src\tests\test_config.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\devtools\Python3\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+src\tests\test_config.py:2: in <module>
+    from src.config import read_properties_file, load_xml_files
+E   ModuleNotFoundError: No module named 'src'
+__________________________________________ ERROR collecting src/tests/test_model.py ___________________________________________
+    return _bootstrap._gcd_import(name[level:], package, level)
+src\tests\test_model.py:3: in <module>
+    from src.model import Model
+E   ModuleNotFoundError: No module named 'src'
+__________________________________________ ERROR collecting src/tests/test_parser.py ___________________________________________
+ImportError while importing test module 'C:\Users\G88729\Desktop\tdd\tdd\src\tests\test_parser.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:                                                                                                                 ____ 
+C:\devtools\Python3\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+src\tests\test_parser.py:2: in <module>
+    from src.parser import  resolve_properties
+E   ModuleNotFoundError: No module named 'src'
+=================================================== short test summary info ====================================================
+ERROR src/tests/test_config.py
+ERROR src/tests/test_model.py                                                                                              ==== 
+ERROR src/tests/test_parser.py
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Interrupted: 3 errors during collection !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

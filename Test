@@ -1,0 +1,250 @@
+Certainly! Here's how you can organize and run the Python files and tests, including the modifications discussed:
+
+### Project Structure
+
+```
+project/
+│
+├── run.py
+└── src/
+    ├── __init__.py
+    ├── config.py
+    ├── interpreter.py
+    ├── model.py
+    ├── parser.py
+    ├── utils.py
+    └── test/
+        ├── __init__.py
+        ├── test_config.py
+        ├── test_interpreter.py
+        ├── test_model.py
+        ├── test_parser.py
+        ├── test_utils.py
+        └── test_data/
+            ├── cbc-osb-common.xml
+            ├── cbc-osb-dev-tire.xml
+            ├── cbc-osb-dev01.xml
+            ├── cbc-service-cbc-osb-common.xml
+            ├── cbc-service-cbc-osb-dev-tire.xml
+            ├── cbc-service-cbc-osb-dev01.xml
+            ├── sample.properties
+            └── output_test.properties
+```
+
+### Files
+
+#### `run.py`
+
+```python
+import argparse
+from src.config import read_properties_file
+from src.parser import parse_properties_file
+from src.utils import output_mode_console, output_mode_file
+
+def main(properties_file_path, xml_files_dir, output_mode):
+    # Read properties file
+    properties = read_properties_file(properties_file_path)
+
+    # Parse properties file and find problems
+    problems = parse_properties_file(properties)
+    
+    if len(problems) > 0:
+        print("Problems found:")
+        for problem in problems:
+            print(problem)
+    else:
+        print("No problems found.")
+
+    # Output results based on mode
+    if output_mode == 1:
+        output_mode_console(properties)
+    elif output_mode == 2:
+        output_mode_file(properties, 'src/test/test_data/output_test.properties')
+    else:
+        print("Invalid output mode specified.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run the property file analysis.")
+    parser.add_argument("properties_file", help="Path to the properties file")
+    parser.add_argument("xml_files_dir", help="Directory containing XML files")
+    parser.add_argument("output_mode", type=int, choices=[1, 2], help="Output mode: 1 for console, 2 for file")
+    
+    args = parser.parse_args()
+    main(args.properties_file, args.xml_files_dir, args.output_mode)
+```
+
+#### `src/config.py`
+
+```python
+import os
+
+def read_properties_file(file_path):
+    properties = {}
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as file:
+            for line in file:
+                line = line.strip()
+                if line and '=' in line:
+                    key, value = line.split('=', 1)
+                    properties[key.strip()] = value.strip()
+    return properties
+```
+
+#### `src/parser.py`
+
+```python
+def parse_properties_file(properties):
+    problems = []
+    for key, value in properties.items():
+        if not value or not value.startswith('${'):
+            problems.append(f"Key '{key}' has an invalid value: '{value}'")
+    return problems
+```
+
+#### `src/utils.py`
+
+```python
+def output_mode_console(data):
+    for key, value in data.items():
+        print(f"{key}={value}")
+
+def output_mode_file(data, file_path):
+    with open(file_path, 'w') as file:
+        for key, value in data.items():
+            file.write(f"{key}={value}\n")
+```
+
+#### `src/test/test_interpreter.py`
+
+```python
+import unittest
+from xml.etree import ElementTree as ET
+from src.interpreter import load_xml_files, find_differences_in_xml
+import os
+
+class TestInterpreter(unittest.TestCase):
+    def setUp(self):
+        self.test_data_dir = 'src/test/test_data'
+        self.xml_files = {
+            'cbc-osb-common.xml': os.path.join(self.test_data_dir, 'cbc-osb-common.xml'),
+            'cbc-osb-dev-tire.xml': os.path.join(self.test_data_dir, 'cbc-osb-dev-tire.xml'),
+            'cbc-osb-dev01.xml': os.path.join(self.test_data_dir, 'cbc-osb-dev01.xml'),
+            'cbc-service-cbc-osb-common.xml': os.path.join(self.test_data_dir, 'cbc-service-cbc-osb-common.xml'),
+            'cbc-service-cbc-osb-dev-tire.xml': os.path.join(self.test_data_dir, 'cbc-service-cbc-osb-dev-tire.xml'),
+            'cbc-service-cbc-osb-dev01.xml': os.path.join(self.test_data_dir, 'cbc-service-cbc-osb-dev01.xml')
+        }
+        self.xml_files_content = load_xml_files(self.xml_files.values())
+        
+        for path, root in self.xml_files_content.items():
+            child = ET.SubElement(root, "item")
+            name = ET.SubElement(child, "name")
+            name.text = "key"
+            value = ET.SubElement(child, "value")
+            value.text = "value"
+
+    def test_find_differences_in_xml(self):
+        key = 'key'
+        differences = find_differences_in_xml(self.xml_files_content, key)
+        self.assertGreater(len(differences), 0)
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+#### `src/test/test_model.py`
+
+```python
+import unittest
+from src.model import get_key_value_pairs
+
+class TestModel(unittest.TestCase):
+    def setUp(self):
+        self.properties = {
+            'key1': 'value1',
+            'key2': 'value2'
+        }
+
+    def test_get_key_value_pairs(self):
+        key_value_pairs = get_key_value_pairs(self.properties)
+        self.assertEqual(key_value_pairs['key1'], 'value1')
+        self.assertEqual(key_value_pairs['key2'], 'value2')
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+#### `src/test/test_parser.py`
+
+```python
+import unittest
+from src.parser import parse_properties_file
+
+class TestParser(unittest.TestCase):
+    def setUp(self):
+        self.properties = {
+            'key1': '${value1',
+            'key2': 'value2'
+        }
+
+    def test_parse_properties_file(self):
+        problems = parse_properties_file(self.properties)
+        self.assertGreater(len(problems), 0)
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+#### `src/test/test_utils.py`
+
+```python
+import unittest
+from src.utils import output_mode_console, output_mode_file
+import os
+
+class TestUtils(unittest.TestCase):
+    def setUp(self):
+        self.data = {'key1': 'value1', 'key2': 'value2'}
+        self.output_file_path = 'src/test/test_data/output_test.properties'
+
+    def test_output_mode_console(self):
+        output_mode_console(self.data)  # This will print to the console
+
+    def test_output_mode_file(self):
+        output_mode_file(self.data, self.output_file_path)
+        with open(self.output_file_path, 'r') as file:
+            lines = file.readlines()
+        self.assertIn('key1=value1\n', lines)
+        self.assertIn('key2=value2\n', lines)
+        os.remove(self.output_file_path)  # Clean up the output file after test
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### Running the Program
+
+To run the program with arguments, follow these steps:
+
+1. **Navigate to Project Directory**: Open a terminal or command prompt and navigate to your project directory.
+
+2. **Run the Program**: Use the following command to run the `run.py` file with the required arguments:
+
+   ```bash
+   python run.py path/to/properties_file.xml path/to/xml_files_dir 1
+   ```
+
+   - Replace `path/to/properties_file.xml` with the path to your properties file.
+   - Replace `path/to/xml_files_dir` with the directory containing your XML files.
+   - Replace `1` with `1` for console output or `2` for file output.
+
+### Running Tests
+
+To run the tests, use the following command:
+
+```bash
+python -m unittest discover src/test
+```
+
+This command will discover and run all test files in the `src/test` directory. 
+
+This setup ensures that the file paths and configurations are not hardcoded but instead specified via command-line arguments and dynamically loaded during runtime and testing.

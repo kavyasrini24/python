@@ -1,0 +1,130 @@
+To handle the situation where some properties are not found in the XML files, we can create a new function to log these missing properties into a file called `properties_not_found.properties`. This will be integrated into the existing logic, ensuring that any properties that reference non-existent XML values are captured and written to this file.
+
+Here are the steps to update the code accordingly:
+
+### 1. Update `src/utils.py`
+
+We'll add a new function `log_missing_properties` to log the missing properties to a file.
+
+```python
+def output_mode(mode, properties):
+    if mode == 1:
+        # Print to console
+        for key, value in properties.items():
+            print(f"{key}: {value}")
+    elif mode == 2:
+        # Write to properties file
+        try:
+            with open('output_properties.properties', 'w') as f:
+                for key, value in properties.items():
+                    f.write(f"{key}={value}\n")
+        except Exception as e:
+            raise Exception(f"Error writing to properties file: {e}")
+
+def log_missing_properties(missing_properties):
+    try:
+        with open('properties_not_found.properties', 'w') as f:
+            for key, value in missing_properties.items():
+                f.write(f"{key}={value}\n")
+    except Exception as e:
+        raise Exception(f"Error writing to properties not found file: {e}")
+```
+
+### 2. Update `src/parser.py`
+
+Modify the `parse_properties_file` function to collect missing properties and log them using the new `log_missing_properties` function.
+
+```python
+def parse_properties_file(properties, xml_files):
+    problems = []
+    missing_properties = {}
+    for key, value in properties.items():
+        if value.startswith('${'):
+            ref_key = value[2:-1]  # Extract the key within ${}
+            found = False
+            for xml_name, xml_root in xml_files.items():
+                element = xml_root.find(f".//*[name='{ref_key}']")
+                if element is not None:
+                    value = element.find('value').text
+                    properties[key] = value
+                    found = True
+                    break
+            if not found:
+                problems.append(f"Key '{key}' references non-existent XML value '{ref_key}'")
+                missing_properties[key] = value
+    return problems, missing_properties
+```
+
+### 3. Update `run.py`
+
+Update the `run.py` to handle missing properties and call `log_missing_properties`.
+
+```python
+import argparse
+from src.config import read_properties_file, load_xml_files
+from src.parser import parse_properties_file
+from src.utils import output_mode, log_missing_properties
+from src.model import Model
+
+def main(application_properties_file, environment_properties_file, xml_files_directory, output_mode_value):
+    try:
+        # Read properties from files
+        application_properties = read_properties_file(application_properties_file)
+        environment_properties = read_properties_file(environment_properties_file)
+
+        # Initialize the model
+        model = Model(application_properties_file, xml_files_directory)
+
+        # Combine properties
+        combined_properties = {**environment_properties, **application_properties}
+
+        # Parse properties file and get problems
+        problems, missing_properties = parse_properties_file(combined_properties, model.xml_files)
+
+        # Check and print problems
+        if problems:
+            print("Problems found:")
+            for problem in problems:
+                print(f" - {problem}")
+            log_missing_properties(missing_properties)
+        else:
+            print("No problems found.")
+
+        # Output results based on mode
+        output_mode(output_mode_value, combined_properties)
+    
+    except FileNotFoundError as e:
+        print(f"Problem 1: File not found - {e}")
+    except ET.ParseError as e:
+        print(f"Problem 2: Parsing error - {e}")
+    except KeyError as e:
+        print(f"Problem 3: Missing reference - {e}")
+    except Exception as e:
+        print(f"Problem 4: Output logic error - {e}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process properties and XML files.")
+    parser.add_argument('application_properties_file', type=str, help='Path to the application properties file')
+    parser.add_argument('environment_properties_file', type=str, help='Path to the environment properties file')
+    parser.add_argument('xml_files_directory', type=str, help='Directory containing XML files')
+    parser.add_argument('output_mode', type=int, choices=[1, 2], help='Output mode: 1 for console, 2 for file')
+
+    args = parser.parse_args()
+    main(args.application_properties_file, args.environment_properties_file, args.xml_files_directory, args.output_mode)
+```
+
+### Summary of Changes
+
+1. **Added `log_missing_properties` function**: This function logs the missing properties into a file called `properties_not_found.properties`.
+2. **Updated `parse_properties_file` function**: This function now also returns missing properties in addition to problems.
+3. **Updated `main` function in `run.py`**: It now calls `log_missing_properties` if there are any missing properties.
+
+### Running the Program
+
+To run the program, use the following command and provide the paths to the properties files and XML directory as arguments:
+
+```sh
+python run.py src/application.properties src/environment.properties src/test/test_data 1
+```
+
+This will execute the program, read the properties files, parse and check for problems, log any missing properties to `properties_not_found.properties`, and then output the results either to the console or to a file based on the specified output mode.

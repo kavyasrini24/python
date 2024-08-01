@@ -1,0 +1,218 @@
+Here’s the complete updated code for the project, removing all hardcoded values and ensuring the program can handle the scenarios you mentioned.
+
+Project Structure
+
+project/
+│
+├── run.py
+└── src/
+    ├── __init__.py
+    ├── config.py
+    ├── interpreter.py
+    ├── model.py
+    ├── parser.py
+    ├── utils.py
+    └── test/
+        ├── __init__.py
+        ├── test_config.py
+        ├── test_interpreter.py
+        ├── test_model.py
+        ├── test_parser.py
+        ├── test_utils.py
+        └── test_data/
+            ├── cbc-osb-common.xml
+            ├── cbc-osb-dev01.xml
+            ├── cbc-osb-dev-tire.xml
+            ├── cbc-service-cbc-osb-common.xml
+            ├── cbc-service-cbc-osb-dev01.xml
+            ├── cbc-service-cbc-osb-dev-tire.xml
+            ├── sample.xml
+            ├── sample.properties
+            ├── application.properties
+            └── environment.properties
+
+src/config.py
+
+import os
+
+def read_properties_file(file_path):
+    properties = {}
+    with open(file_path, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, value = line.split('=', 1)
+                properties[key.strip()] = value.strip()
+    return properties
+
+def load_xml_files(directory_path):
+    xml_files = {}
+    for file_name in os.listdir(directory_path):
+        if file_name.endswith('.xml'):
+            xml_files[file_name] = os.path.join(directory_path, file_name)
+    return xml_files
+
+src/model.py
+
+import xml.etree.ElementTree as ET
+
+class Model:
+    def __init__(self, application_properties_file, xml_files_directory):
+        self.application_properties_file = application_properties_file
+        self.xml_files = self._load_xml_files(xml_files_directory)
+
+    def _load_xml_files(self, directory_path):
+        xml_files = {}
+        for file_name in os.listdir(directory_path):
+            if file_name.endswith('.xml'):
+                tree = ET.parse(os.path.join(directory_path, file_name))
+                xml_files[file_name] = tree.getroot()
+        return xml_files
+
+src/parser.py
+
+def parse_properties_file(properties, xml_files):
+    problems = []
+    missing_properties = {}
+    for key, value in properties.items():
+        if value.startswith('${'):
+            ref_key = value[2:-1]  # Extract the key within ${}
+            found = False
+            for xml_name, xml_root in xml_files.items():
+                element = xml_root.find(f".//*[name='{ref_key}']")
+                if element is not None:
+                    value = element.find('value').text
+                    properties[key] = value
+                    found = True
+                    break
+            if not found:
+                problems.append(f"Key '{key}' references non-existent XML value '{ref_key}'")
+                missing_properties[key] = value
+    return problems, missing_properties
+
+src/utils.py
+
+def output_mode(mode, properties):
+    if mode == 1:
+        # Print to console
+        for key, value in properties.items():
+            print(f"{key}: {value}")
+    elif mode == 2:
+        # Write to properties file
+        try:
+            with open('output_properties.properties', 'w') as f:
+                for key, value in properties.items():
+                    f.write(f"{key}={value}\n")
+        except Exception as e:
+            raise Exception(f"Error writing to properties file: {e}")
+
+def log_missing_properties(missing_properties):
+    try:
+        with open('properties_not_found.properties', 'w') as f:
+            for key, value in missing_properties.items():
+                f.write(f"{key}={value}\n")
+    except Exception as e:
+        raise Exception(f"Error writing to properties not found file: {e}")
+
+run.py
+
+import argparse
+from src.config import read_properties_file, load_xml_files
+from src.parser import parse_properties_file
+from src.utils import output_mode, log_missing_properties
+from src.model import Model
+
+def main(application_properties_file, environment_properties_file, xml_files_directory, output_mode_value):
+    try:
+        # Read properties from files
+        application_properties = read_properties_file(application_properties_file)
+        environment_properties = read_properties_file(environment_properties_file)
+
+        # Initialize the model
+        model = Model(application_properties_file, xml_files_directory)
+
+        # Combine properties
+        combined_properties = {**environment_properties, **application_properties}
+
+        # Parse properties file and get problems
+        problems, missing_properties = parse_properties_file(combined_properties, model.xml_files)
+
+        # Check and print problems
+        if problems:
+            print("Problems found:")
+            for problem in problems:
+                print(f" - {problem}")
+            log_missing_properties(missing_properties)
+        else:
+            print("No problems found.")
+
+        # Output results based on mode
+        output_mode(output_mode_value, combined_properties)
+    
+    except FileNotFoundError as e:
+        print(f"Problem 1: File not found - {e}")
+    except ET.ParseError as e:
+        print(f"Problem 2: Parsing error - {e}")
+    except KeyError as e:
+        print(f"Problem 3: Missing reference - {e}")
+    except Exception as e:
+        print(f"Problem 4: Output logic error - {e}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process properties and XML files.")
+    parser.add_argument('application_properties_file', type=str, help='Path to the application properties file')
+    parser.add_argument('environment_properties_file', type=str, help='Path to the environment properties file')
+    parser.add_argument('xml_files_directory', type=str, help='Directory containing XML files')
+    parser.add_argument('output_mode', type=int, choices=[1, 2], help='Output mode: 1 for console, 2 for file')
+
+    args = parser.parse_args()
+    main(args.application_properties_file, args.environment_properties_file, args.xml_files_directory, args.output_mode)
+
+Test Files
+
+src/test/test_config.py
+
+import unittest
+from src.config import read_properties_file, load_xml_files
+
+class TestConfig(unittest.TestCase):
+
+    def test_read_properties_file(self):
+        properties = read_properties_file('src/test/test_data/sample.properties')
+        self.assertEqual(properties['key1'], 'value1')
+        self.assertEqual(properties['key2'], 'value2')
+
+    def test_load_xml_files(self):
+        xml_files = load_xml_files('src/test/test_data')
+        self.assertIn('sample.xml', xml_files)
+
+if __name__ == '__main__':
+    unittest.main()
+
+src/test/test_parser.py
+
+import unittest
+from src.parser import parse_properties_file
+from src.config import load_xml_files
+
+class TestParser(unittest.TestCase):
+
+    def setUp(self):
+        self.xml_files = load_xml_files('src/test/test_data')
+
+    def test_parse_properties_file(self):
+        properties = {'key1': '${reference1}', 'key2': 'value2'}
+        problems, missing_properties = parse_properties_file(properties, self.xml_files)
+        self.assertIn('Key \'key1\' references non-existent XML value \'reference1\'', problems)
+        self.assertEqual(missing_properties['key1'], '${reference1}')
+
+if __name__ == '__main__':
+    unittest.main()
+
+Running the Program
+
+To run the program, use the following command and provide the paths to the properties files and XML directory as arguments:
+
+python run.py src/application.properties src/environment.properties src/test/test_data 1
+
+This command will execute the program, read the properties files, parse and check for problems, log any missing properties to properties_not_found.properties, and then output the results either to the console or to a file based on the specified output mode.

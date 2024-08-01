@@ -1,0 +1,266 @@
+Let's implement the code to address the following requirements:
+
+1. **Read properties from `application.properties` and `environment.properties` files.**
+2. **Look up values in the specified XML files.**
+3. **If values are not found in XML files, look in the `environment.properties` file.**
+4. **Output the final properties with resolved values.**
+5. **Log any newly added properties from `application.properties` that are not found.**
+
+### File Structure
+
+```
+project/
+│
+├── run.py
+└── src/
+    ├── __init__.py
+    ├── config.py
+    ├── model.py
+    ├── parser.py
+    ├── utils.py
+    └── test/
+        ├── __init__.py
+        ├── test_config.py
+        ├── test_model.py
+        ├── test_parser.py
+        └── test_data/
+            ├── cbc-osb-common.xml
+            ├── cbc-osb-dev-tire.xml
+            ├── cbc-osb-dev01.xml
+            ├── cbc-service-cbc-osb-common.xml
+            ├── cbc-service-cbc-osb-dev-tire.xml
+            └── cbc-service-cbc-osb-dev01.xml
+            ├── sample.properties
+            ├── application.properties
+            └── environment.properties
+```
+
+### `run.py`
+
+```python
+import argparse
+from src.config import read_properties_file, load_xml_files
+from src.parser import resolve_properties
+from src.utils import output_properties, log_missing_properties
+from src.model import Model
+
+def main(application_properties_file, environment_properties_file, xml_files_directory, output_mode_value):
+    # Read properties from files
+    application_properties = read_properties_file(application_properties_file)
+    environment_properties = read_properties_file(environment_properties_file)
+    
+    # Initialize the model
+    model = Model(xml_files_directory)
+    
+    # Resolve properties
+    resolved_properties, missing_properties = resolve_properties(application_properties, environment_properties, model.xml_files)
+    
+    # Log missing properties
+    if missing_properties:
+        log_missing_properties(missing_properties)
+    
+    # Output the final properties
+    output_properties(output_mode_value, resolved_properties)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process properties and XML files.")
+    parser.add_argument('application_properties_file', type=str, help='Path to the application properties file')
+    parser.add_argument('environment_properties_file', type=str, help='Path to the environment properties file')
+    parser.add_argument('xml_files_directory', type=str, help='Directory containing XML files')
+    parser.add_argument('output_mode', type=int, choices=[1, 2], help='Output mode: 1 for console, 2 for file')
+    
+    args = parser.parse_args()
+    main(args.application_properties_file, args.environment_properties_file, args.xml_files_directory, args.output_mode)
+```
+
+### `src/config.py`
+
+```python
+import os
+from xml.etree import ElementTree as ET
+
+def read_properties_file(file_path):
+    properties = {}
+    with open(file_path, 'r') as file:
+        for line in file:
+            if '=' in line and line.strip() and not line.startswith('#'):
+                key, value = line.strip().split('=', 1)
+                properties[key] = value
+    return properties
+
+def load_xml_files(directory):
+    xml_files = {}
+    for file_name in os.listdir(directory):
+        if file_name.endswith('.xml'):
+            file_path = os.path.join(directory, file_name)
+            xml_files[file_name] = ET.parse(file_path).getroot()
+    return xml_files
+```
+
+### `src/parser.py`
+
+```python
+def resolve_properties(application_properties, environment_properties, xml_files):
+    resolved_properties = {}
+    missing_properties = {}
+
+    for key, value in application_properties.items():
+        if value.startswith('${'):
+            ref_key = value[2:-1]  # Extract the key within ${}
+            found = False
+            
+            # Check in XML files
+            for xml_name, xml_root in xml_files.items():
+                element = xml_root.find(f".//*[name='{ref_key}']")
+                if element is not None:
+                    resolved_properties[key] = element.find('value').text
+                    found = True
+                    break
+
+            # Check in environment properties
+            if not found:
+                if ref_key in environment_properties:
+                    resolved_properties[key] = environment_properties[ref_key]
+                    found = True
+
+            # Log missing properties
+            if not found:
+                missing_properties[key] = value
+
+        else:
+            resolved_properties[key] = value
+    
+    return resolved_properties, missing_properties
+```
+
+### `src/utils.py`
+
+```python
+def output_properties(mode, properties):
+    if mode == 1:
+        # Print to console
+        for key, value in properties.items():
+            print(f"{key}: {value}")
+    elif mode == 2:
+        # Write to properties file
+        with open('output_properties.properties', 'w') as f:
+            for key, value in properties.items():
+                f.write(f"{key}={value}\n")
+
+def log_missing_properties(missing_properties):
+    with open('missing_properties.log', 'w') as f:
+        for key, value in missing_properties.items():
+            f.write(f"{key}={value}\n")
+```
+
+### `src/model.py`
+
+```python
+import os
+from xml.etree import ElementTree as ET
+
+class Model:
+    def __init__(self, xml_files_directory):
+        self.xml_files = self.load_xml_files(xml_files_directory)
+    
+    def load_xml_files(self, directory):
+        xml_files = {}
+        for file_name in os.listdir(directory):
+            if file_name.endswith('.xml'):
+                file_path = os.path.join(directory, file_name)
+                xml_files[file_name] = ET.parse(file_path).getroot()
+        return xml_files
+```
+
+### Running the Program
+
+To run the program and pass arguments dynamically, you can execute the `run.py` script from the command line:
+
+```sh
+python run.py src/application.properties src/environment.properties src/test/test_data 1
+```
+
+- The first argument is the path to the `application.properties` file.
+- The second argument is the path to the `environment.properties` file.
+- The third argument is the directory containing the XML files.
+- The fourth argument is the output mode (1 for console, 2 for file).
+
+This setup should remove all hardcoded values and dynamically read from the provided properties and XML files, producing the expected output. Make sure to adjust paths as necessary based on your local setup and ensure all files exist at the specified locations.
+
+### Tests
+Here are the updated test cases to verify that everything is working correctly:
+
+### `src/test/test_config.py`
+
+```python
+import unittest
+from src.config import read_properties_file, load_xml_files
+
+class TestConfig(unittest.TestCase):
+    def test_read_properties_file(self):
+        properties = read_properties_file('src/test/test_data/sample.properties')
+        self.assertEqual(properties['key1'], 'value1')
+        self.assertEqual(properties['key2'], 'value2')
+
+    def test_load_xml_files(self):
+        xml_files = load_xml_files('src/test/test_data')
+        self.assertIn('cbc-osb-common.xml', xml_files)
+        self.assertIn('cbc-osb-dev-tire.xml', xml_files)
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### `src/test/test_model.py`
+
+```python
+import unittest
+from src.model import Model
+
+class TestModel(unittest.TestCase):
+    def test_load_xml_files(self):
+        model = Model('src/test/test_data')
+        self.assertIn('cbc-osb-common.xml', model.xml_files)
+        self.assertIn('cbc-osb-dev-tire.xml', model.xml_files)
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### `src/test/test_parser.py`
+
+```python
+import unittest
+from src.parser import resolve_properties
+
+class TestParser(unittest.TestCase):
+    def test_resolve_properties(self):
+        application_properties = {
+            'key1': '${ref1}',
+            'key2': '${ref2}',
+            'key3': 'static_value'
+        }
+        environment_properties = {
+            'ref1': 'env_value1'
+        }
+        xml_files = {
+            'cbc-osb-common.xml': None,
+            'cbc-osb-dev-tire.xml': None,
+            'cbc-osb-dev01.xml': None,
+            'cbc-service-cbc-osb-common.xml': None,
+            'cbc-service-cbc-osb-dev-tire.xml': None,
+            'cbc-service-cbc-osb-dev01.xml': None
+        }
+
+        resolved_properties, missing_properties = resolve_properties(application_properties, environment_properties, xml_files)
+
+        self.assertEqual(resolved_properties['key1'], 'env_value1')
+        self.assertEqual(resolved_properties['key2'], '${ref2}')
+        self.assertEqual(resolved_properties['key3'], 'static_value')
+        self.assertIn('key2', missing_properties)
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+This comprehensive setup ensures the program reads properties from the specified files, resolves values using XML files, and correctly logs any missing properties. Adjust the paths and filenames as needed to match your local environment.

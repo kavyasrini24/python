@@ -1,0 +1,112 @@
+Sure, we can update the test cases to iterate over all XML files in the specified directory rather than hardcoding specific file names. This way, the tests will dynamically check all XML files in the given directory.
+
+### Updated File Structure
+
+```
+project/
+│
+├── run.py
+└── src/
+    ├── __init__.py
+    ├── config.py
+    ├── interpreter.py
+    ├── model.py
+    ├── parser.py
+    └── utils.py
+    └── test/
+        ├── __init__.py
+        ├── test_config.py
+        ├── test_interpreter.py
+        ├── test_model.py
+        ├── test_parser.py
+        └── test_data/
+            ├── cbc-osb-common.xml
+            ├── cbc-osb-dev-tire.xml
+            ├── cbc-osb-dev01.xml
+            ├── cbc-service-cbc-osb-common.xml
+            ├── cbc-service-cbc-osb-dev-tire.xml
+            └── cbc-service-cbc-osb-dev01.xml
+            └── sample.properties
+            └── application.properties
+            └── environment.properties
+```
+
+### `src/model.py`
+
+The `Model` class remains the same as previously defined.
+
+```python
+import os
+from xml.etree import ElementTree as ET
+
+class Model:
+    def __init__(self, application_properties_file, xml_files_directory):
+        self.properties = self.load_properties(application_properties_file)
+        self.xml_files = self.load_xml_files(xml_files_directory)
+    
+    def load_properties(self, file_path):
+        properties = {}
+        with open(file_path, 'r') as file:
+            for line in file:
+                if '=' in line and line.strip() and not line.startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    properties[key] = value
+        return properties
+    
+    def load_xml_files(self, directory):
+        xml_files = {}
+        for file_name in os.listdir(directory):
+            if file_name.endswith('.xml'):
+                file_path = os.path.join(directory, file_name)
+                xml_files[file_name] = ET.parse(file_path).getroot()
+        return xml_files
+```
+
+### `src/test/test_model.py`
+
+Update the test cases to dynamically iterate over all XML files in the directory.
+
+```python
+import unittest
+import os
+from src.model import Model
+
+class TestModel(unittest.TestCase):
+    def setUp(self):
+        self.application_properties_file = 'src/test/test_data/application.properties'
+        self.xml_files_directory = 'src/test/test_data'
+
+    def test_load_properties(self):
+        model = Model(self.application_properties_file, self.xml_files_directory)
+        properties = model.properties
+        self.assertIn('some.property', properties)
+        self.assertEqual(properties['some.property'], 'some.value')
+
+    def test_load_xml_files(self):
+        model = Model(self.application_properties_file, self.xml_files_directory)
+        xml_files = model.xml_files
+        for file_name in os.listdir(self.xml_files_directory):
+            if file_name.endswith('.xml'):
+                self.assertIn(file_name, xml_files)
+                root = xml_files[file_name]
+                self.assertIsNotNone(root)
+                # Add any specific checks for elements if needed
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### Running the Program and Tests
+
+To run the main script and test cases, follow these commands:
+
+```sh
+# Run the main script
+python run.py src/test/test_data/application.properties src/test/test_data/environment.properties src/test/test_data 1
+
+# Run the test cases
+cd src/test
+python -m unittest test_model.py
+```
+
+This setup will now dynamically check all XML files in the specified directory without any hardcoding. You can adjust the assertions in the test cases to include more specific checks based on the actual content of your XML files.
