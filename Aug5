@@ -1,0 +1,241 @@
+To help you get started with simple pytest cases for verifying whether properties are missing or XML files are loading correctly, I'll provide basic test cases. These tests will focus on ensuring that the functions and methods you have provided are functioning as expected without dealing with specific key-value pairs.
+
+### File Structure
+
+```
+project/
+│
+├── run.py
+└── src/
+    ├── __init__.py
+    ├── config.py
+    ├── interpreter.py
+    ├── model.py
+    ├── parser.py
+    ├── utils.py
+    └── tests/
+        ├── __init__.py
+        ├── test_config.py
+        ├── test_interpreter.py
+        ├── test_model.py
+        ├── test_parser.py
+        └── test_data/
+            ├── cbc-osb-common.xml
+            ├── cbc-osb-dev-tire.xml
+            ├── cbc-osb-dev01.xml
+            ├── cbc-service-cbc-osb-common.xml
+            ├── cbc-service-cbc-osb-dev-tire.xml
+            └── cbc-service-cbc-osb-dev01.xml
+            ├── sample.properties
+            ├── application.properties
+            └── environment.properties
+```
+
+### Sample `application.properties` and `environment.properties`
+
+For the sake of simplicity, let's assume the `application.properties` and `environment.properties` files contain minimal key-value pairs:
+
+`application.properties`
+```
+app.name=SampleApp
+app.version=1.0
+```
+
+`environment.properties`
+```
+env.name=Development
+env.debug=true
+```
+
+### Sample XML File (`cbc-osb-common.xml`)
+
+```xml
+<root>
+    <property>
+        <name>xml.key1</name>
+        <value>XML Value 1</value>
+    </property>
+    <property>
+        <name>xml.key2</name>
+        <value>XML Value 2</value>
+    </property>
+</root>
+```
+
+### `config.py`
+
+```python
+import os
+from xml.etree import ElementTree as ET
+
+def read_properties_file(file_path):
+    properties = {}
+    with open(file_path, 'r') as file:
+        for line in file:
+            if '=' in line and line.strip() and not line.startswith('#'):
+                key, value = line.strip().split('=', 1)
+                properties[key] = value
+    return properties
+
+def load_xml_files(directory):
+    xml_files = {}
+    for file_name in os.listdir(directory):
+        if file_name.endswith('.xml'):
+            file_path = os.path.join(directory, file_name)
+            xml_files[file_name] = ET.parse(file_path).getroot()
+    return xml_files
+```
+
+### `utils.py`
+
+```python
+def output_properties(mode, properties):
+    if mode == 1:
+        # Print to console
+        for key, value in properties.items():
+            print(f"{key}: {value}")
+    elif mode == 2:
+        # Write to properties file
+        with open('output_properties.properties', 'w') as f:
+            for key, value in properties.items():
+                f.write(f"{key}={value}\n")
+
+def log_missing_properties(missing_properties):
+    with open('missing_properties.log', 'w') as f:
+        for key, value in missing_properties.items():
+            f.write(f"{key}={value}\n")
+```
+
+### `model.py`
+
+```python
+import os
+from xml.etree import ElementTree as ET
+
+class Model:
+    def __init__(self, xml_files_directory):
+        self.xml_files = self.load_xml_files(xml_files_directory)
+    
+    def load_xml_files(self, directory):
+        xml_files = {}
+        for file_name in os.listdir(directory):
+            if file_name.endswith('.xml'):
+                file_path = os.path.join(directory, file_name)
+                xml_files[file_name] = ET.parse(file_path).getroot()
+        return xml_files
+```
+
+### Pytest Test Cases
+
+#### `tests/test_config.py`
+
+```python
+import os
+from src.config import read_properties_file, load_xml_files
+
+def test_read_properties_file(tmpdir):
+    # Create a sample properties file
+    properties_content = "test.key=test.value\nanother.key=another.value"
+    properties_file = tmpdir.join("sample.properties")
+    properties_file.write(properties_content)
+    
+    properties = read_properties_file(properties_file)
+    assert properties['test.key'] == 'test.value'
+    assert properties['another.key'] == 'another.value'
+
+def test_load_xml_files(tmpdir):
+    # Create a sample XML file
+    xml_content = """
+    <root>
+        <property>
+            <name>sample.key</name>
+            <value>sample.value</value>
+        </property>
+    </root>
+    """
+    xml_file = tmpdir.join("sample.xml")
+    xml_file.write(xml_content)
+    
+    xml_files = load_xml_files(tmpdir)
+    assert 'sample.xml' in xml_files
+    root = xml_files['sample.xml']
+    assert root.find(".//property[name='sample.key']/value").text == 'sample.value'
+```
+
+#### `tests/test_utils.py`
+
+```python
+import os
+from src.utils import output_properties, log_missing_properties
+
+def test_output_properties_console(capfd):
+    properties = {"key1": "value1", "key2": "value2"}
+    output_properties(1, properties)
+    
+    out, err = capfd.readouterr()
+    assert "key1: value1" in out
+    assert "key2: value2" in out
+
+def test_output_properties_file(tmpdir):
+    properties = {"key1": "value1", "key2": "value2"}
+    output_file = tmpdir.join("output_properties.properties")
+    
+    output_properties(2, properties)
+    
+    assert os.path.exists('output_properties.properties')
+    with open('output_properties.properties', 'r') as f:
+        content = f.read()
+        assert "key1=value1" in content
+        assert "key2=value2" in content
+
+def test_log_missing_properties(tmpdir):
+    missing_properties = {"missing.key1": "missing.value1", "missing.key2": "missing.value2"}
+    log_file = tmpdir.join("missing_properties.log")
+    
+    log_missing_properties(missing_properties)
+    
+    assert os.path.exists('missing_properties.log')
+    with open('missing_properties.log', 'r') as f:
+        content = f.read()
+        assert "missing.key1=missing.value1" in content
+        assert "missing.key2=missing.value2" in content
+```
+
+#### `tests/test_model.py`
+
+```python
+import os
+from src.model import Model
+
+def test_model_load_xml_files(tmpdir):
+    # Create a sample XML file
+    xml_content = """
+    <root>
+        <property>
+            <name>sample.key</name>
+            <value>sample.value</value>
+        </property>
+    </root>
+    """
+    xml_file = tmpdir.join("sample.xml")
+    xml_file.write(xml_content)
+    
+    model = Model(tmpdir)
+    assert 'sample.xml' in model.xml_files
+    root = model.xml_files['sample.xml']
+    assert root.find(".//property[name='sample.key']/value").text == 'sample.value'
+```
+
+### Running the Tests
+
+1. **Install pytest if you haven't already**:
+    ```sh
+    pip install pytest
+    ```
+
+2. **Navigate to the project directory and run the tests**:
+    ```sh
+    pytest
+    ```
+
+These test cases cover basic functionality for reading properties files, loading XML files, and checking output functions. They use `tmpdir` to create temporary files and directories for testing purposes, ensuring that the tests do not depend on hardcoded paths and can run in isolation.
