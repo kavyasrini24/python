@@ -1,0 +1,123 @@
+Here's how you can update your `resolve_properties` and `output_properties` functions based on your latest requirements, while also restructuring the project.
+
+### Updated `resolve_properties` Function
+
+This function will now only focus on handling the `environment_properties` file and removing any unnecessary features.
+
+```python
+import os
+from xml.etree import ElementTree as ET
+
+def resolve_properties(application_properties, environment_properties, xml_files):
+    combined_properties = {}
+    missing_properties = set()
+    
+    # Iterate over the application properties
+    for key, value in application_properties.items():
+        if value.startswith('${'):
+            ref_key = value[2:-1]  # Extract the key within ${}
+            found = False
+            for xml_name, xml_root in xml_files.items():
+                element = xml_root.find(f".//*[name='{ref_key}']")
+                if element is not None:
+                    combined_properties[key] = element.find('value').text
+                    found = True
+                    break
+            if not found and ref_key in environment_properties:
+                combined_properties[key] = environment_properties[ref_key]
+            elif not found:
+                missing_properties.add(key)
+        else:
+            combined_properties[key] = value
+
+    return combined_properties, missing_properties
+```
+
+### Updated `output_properties` Function
+
+This function will now only handle logging missing properties (option 3) and removing unnecessary functionalities.
+
+```python
+def output_properties(mode, properties, missing_properties=None):
+    if mode == 1:
+        # Print to console
+        for key, value in properties.items():
+            print(f"{key}: {value}")
+    elif mode == 2:
+        # Write to properties file
+        with open('output_properties.properties', 'w') as f:
+            for key, value in properties.items():
+                f.write(f"{key}={value}\n")
+    elif mode == 3:
+        # Write missing properties to log file
+        if missing_properties:
+            with open('missing_properties.log', 'w') as f:
+                for key in missing_properties:
+                    f.write(f"{key}\n")
+```
+
+### Example Test Cases
+
+Here’s how the tests should look:
+
+```python
+import pytest
+from src.utils import output_properties
+
+def test_output_properties_console(capfd):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    output_properties(1, properties)
+    captured = capfd.readouterr()
+    assert "key1: value1" in captured.out
+    assert "key2: value2" in captured.out
+
+def test_output_properties_file(tmpdir):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    output_file = tmpdir.join("output_properties.properties")
+    output_properties(2, properties)
+    assert output_file.read() == "key1=value1\nkey2=value2\n"
+
+def test_log_missing_properties(tmpdir):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    missing_properties = {'key3', 'key4'}
+    
+    output_properties(3, properties, missing_properties=missing_properties)
+    
+    missing_file = tmpdir.join("missing_properties.log")
+    
+    assert missing_file.read() == "key3\nkey4\n"
+```
+
+### Project Structure
+
+Ensure your project is structured as follows:
+
+```
+project_root/
+│
+├── src/
+│   ├── config.py
+│   ├── parser.py
+│   ├── utils.py
+│   ├── model.py
+│   └── test/
+│       ├── test_data/
+│       │   ├── file1.xml
+│       │   ├── file2.xml
+│       │   ├── application.properties
+│       │   └── environment.properties
+│       ├── test_parser.py
+│       ├── test_utils.py
+│       └── test_config.py
+└── README.md
+```
+
+### Running Tests
+
+Run your tests with pytest from the project root:
+
+```sh
+pytest
+```
+
+This setup should now reflect your requirements, focusing on handling and logging missing properties.
