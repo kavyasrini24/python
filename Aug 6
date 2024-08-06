@@ -1,0 +1,165 @@
+To include an additional option for tracking removed properties, we'll update the `output_properties` function to handle a fourth mode. Additionally, we need to modify the `resolve_properties` function to identify removed properties. Here’s how you can do it:
+
+### Updated `output_properties` Function:
+
+```python
+def output_properties(mode, properties, missing_properties=None, new_properties=None, removed_properties=None):
+    if mode == 1:
+        # Print to console
+        for key, value in properties.items():
+            print(f"{key}: {value}")
+    elif mode == 2:
+        # Write to properties file
+        with open('output_properties.properties', 'w') as f:
+            for key, value in properties.items():
+                f.write(f"{key}={value}\n")
+    elif mode == 3:
+        # Write missing and new properties to log files
+        if missing_properties:
+            with open('missing_properties.log', 'w') as f:
+                for key in missing_properties:
+                    f.write(f"{key}\n")
+        if new_properties:
+            with open('new_properties.log', 'w') as f:
+                for key, value in new_properties.items():
+                    f.write(f"{key}={value}\n")
+    elif mode == 4:
+        # Write removed properties to log file
+        if removed_properties:
+            with open('removed_properties.log', 'w') as f:
+                for key in removed_properties:
+                    f.write(f"{key}\n")
+```
+
+### Updated `main` Function in `run.py`:
+
+```python
+import argparse
+from src.config import read_properties_file, load_xml_files
+from src.parser import resolve_properties
+from src.utils import output_properties
+from src.model import Model
+
+def main(application_properties_file, environment_properties_file, xml_files_directory, output_mode_value):
+    # Read properties from files
+    application_properties = read_properties_file(application_properties_file)
+    environment_properties = read_properties_file(environment_properties_file)
+    
+    # Initialize the model
+    model = Model(xml_files_directory)
+    
+    # Resolve properties from XML files
+    combined_properties, missing_properties, new_properties, removed_properties = resolve_properties(application_properties, environment_properties, model.xml_files)
+    
+    # Output results based on mode
+    output_properties(output_mode_value, combined_properties, missing_properties, new_properties, removed_properties)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process properties and XML files.")
+    parser.add_argument('application_properties_file', type=str, help='Path to the application properties file')
+    parser.add_argument('environment_properties_file', type=str, help='Path to the environment properties file')
+    parser.add_argument('xml_files_directory', type=str, help='Directory containing XML files')
+    parser.add_argument('output_mode', type=int, choices=[1, 2, 3, 4], help='Output mode: 1 for console, 2 for file, 3 for missing properties log, 4 for removed properties log')
+
+    args = parser.parse_args()
+    main(args.application_properties_file, args.environment_properties_file, args.xml_files_directory, args.output_mode)
+```
+
+### Updated `resolve_properties` in `src/parser.py`:
+
+Modify the `resolve_properties` function to return removed properties:
+
+```python
+def resolve_properties(application_properties, environment_properties, xml_files):
+    combined_properties = {}
+    missing_properties = set()
+    new_properties = {}
+    removed_properties = set(application_properties.keys())
+
+    for key, value in application_properties.items():
+        if value.startswith('${'):
+            ref_key = value[2:-1]  # Extract the key within ${}
+            found = False
+            for xml_name, xml_root in xml_files.items():
+                element = xml_root.find(f".//*[name='{ref_key}']")
+                if element is not None:
+                    value = element.find('value').text
+                    combined_properties[key] = value
+                    found = True
+                    break
+            if not found:
+                if ref_key in environment_properties:
+                    combined_properties[key] = environment_properties[ref_key]
+                else:
+                    missing_properties.add(key)
+        else:
+            combined_properties[key] = value
+
+    for key in environment_properties:
+        if key not in combined_properties:
+            new_properties[key] = environment_properties[key]
+        if key in removed_properties:
+            removed_properties.remove(key)
+
+    return combined_properties, missing_properties, new_properties, removed_properties
+```
+
+### Test Cases:
+
+Here are the test cases for the `output_properties` function:
+
+Create `src/tests/test_utils.py`:
+
+```python
+import os
+import pytest
+from src.utils import output_properties
+
+def test_output_properties_console(capfd):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    output_properties(1, properties)
+    captured = capfd.readouterr()
+    assert "key1: value1" in captured.out
+    assert "key2: value2" in captured.out
+
+def test_output_properties_file(tmpdir):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    output_file = tmpdir.join("output_properties.properties")
+    output_properties(2, properties)
+    assert output_file.read() == "key1=value1\nkey2=value2\n"
+
+def test_log_missing_properties(tmpdir):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    missing_properties = {'key3', 'key4'}
+    new_properties = {'key5': 'value5'}
+    
+    output_properties(3, properties, missing_properties, new_properties)
+    
+    missing_file = tmpdir.join("missing_properties.log")
+    new_file = tmpdir.join("new_properties.log")
+    
+    assert missing_file.read() == "key3\nkey4\n"
+    assert new_file.read() == "key5=value5\n"
+
+def test_log_removed_properties(tmpdir):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    removed_properties = {'key3', 'key4'}
+    
+    output_properties(4, properties, removed_properties=removed_properties)
+    
+    removed_file = tmpdir.join("removed_properties.log")
+    
+    assert removed_file.read() == "key3\nkey4\n"
+```
+
+### Running the Tests:
+
+Ensure you are in the project root directory and run the tests with pytest:
+
+```sh
+pytest
+```
+
+### Summary:
+
+This setup includes a fourth mode for logging removed properties. The `resolve_properties` function has been updated to return missing, new, and removed properties, which are then processed by the `output_properties` function. The test cases for `output_properties` ensure all four modes are covered.
