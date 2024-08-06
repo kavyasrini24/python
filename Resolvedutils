@@ -1,0 +1,120 @@
+Here's how you can restructure your project according to your specifications:
+
+### Project Structure
+
+```
+project_root/
+│
+├── src/
+│   ├── config.py
+│   ├── parser.py
+│   ├── utils.py
+│   ├── model.py
+│   └── test/
+│       ├── test_data/
+│       │   ├── file1.xml
+│       │   ├── file2.xml
+│       │   ├── application.properties
+│       │   └── environment.properties
+│       ├── test_parser.py
+│       ├── test_utils.py
+│       └── test_config.py
+└── README.md
+```
+
+### Updated Test Files
+
+You should move your existing `application.properties` and `environment.properties` files to `src/test/test_data/`, and place any XML files there as well.
+
+#### Example `test_parser.py`
+
+```python
+import pytest
+from src.parser import resolve_properties
+
+@pytest.fixture
+def setup_files():
+    # Set up paths to test files
+    application_properties = {
+        # Example properties
+        'key1': '${ref1}',
+        'key2': '${ref2}'
+    }
+    environment_properties = {
+        # Example properties
+        'ref1': 'value1',
+        'ref2': 'value2'
+    }
+    xml_files = {
+        'file1.xml': '<root><element name="ref1"><value>value1</value></element></root>',
+        'file2.xml': '<root><element name="ref2"><value>value2</value></element></root>'
+    }
+    return application_properties, environment_properties, xml_files
+
+def test_resolve_properties(setup_files):
+    application_properties, environment_properties, xml_files = setup_files
+    combined_properties, missing_properties, removed_properties, missing_in_env = resolve_properties(
+        application_properties,
+        environment_properties,
+        xml_files
+    )
+    
+    assert combined_properties == {'key1': 'value1', 'key2': 'value2'}
+    assert missing_properties == set()
+    assert removed_properties == set()
+    assert missing_in_env == set()
+```
+
+#### Example `test_utils.py`
+
+```python
+import pytest
+from src.utils import output_properties
+
+def test_output_properties_console(capfd):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    output_properties(1, properties)
+    captured = capfd.readouterr()
+    assert "key1: value1" in captured.out
+    assert "key2: value2" in captured.out
+
+def test_output_properties_file(tmpdir):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    output_file = tmpdir.join("output_properties.properties")
+    output_properties(2, properties)
+    assert output_file.read() == "key1=value1\nkey2=value2\n"
+
+def test_log_missing_properties(tmpdir):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    missing_properties = {'key3', 'key4'}
+    
+    output_properties(3, properties, missing_properties=missing_properties)
+    
+    missing_file = tmpdir.join("missing_properties.log")
+    
+    assert missing_file.read() == "key3\nkey4\n"
+
+def test_log_removed_properties(tmpdir):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    removed_properties = {'key3', 'key4'}
+    
+    output_properties(4, properties, removed_properties=removed_properties)
+    
+    removed_file = tmpdir.join("removed_properties.log")
+    
+    assert removed_file.read() == "key3\nkey4\n"
+
+def test_log_properties_not_in_env(tmpdir):
+    properties = {'key1': 'value1', 'key2': 'value2'}
+    missing_in_env = {'key3', 'key4'}
+    
+    output_properties(5, properties, missing_in_env=missing_in_env)
+    
+    missing_in_env_file = tmpdir.join("properties_not_in_env.log")
+    
+    assert missing_in_env_file.read() == "key3\nkey4\n"
+```
+
+### Moving Files
+
+Move `application.properties`, `environment.properties`, and XML files to `src/test/test_data/`. Make sure that any paths or references to these files in your tests are updated to reflect this new location.
