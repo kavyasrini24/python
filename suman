@@ -1,0 +1,80 @@
+from xml.etree import ElementTree as ET
+# Open File in Read Mode
+file_1 = open('application.properties', 'r')
+file_2 = open('environment.properties', 'r')
+
+
+file_1_keywords = []
+file_2_keywords = []
+
+file_1_line = file_1.readline()
+file_2_line = file_2.readline()
+file_1_line = file_1_line.rstrip()
+file_2_line = file_2_line.rstrip()
+while file_1_line != '' or file_2_line != '':
+    file_1_line = file_1_line.rstrip()
+    file_2_line = file_2_line.rstrip()
+    
+    if file_1_line and file_1_line[0] != "#" and file_1_line.split("=")[1][0] == "$":
+        file_1_keywords.append(file_1_line.split("=")[1][2:-1])
+    if file_2_line and file_2_line[0] != "#":
+        file_2_keywords.append(file_2_line.split("=")[0])
+
+	# Read the next line from the file
+    file_1_line = file_1.readline()
+    file_2_line = file_2.readline()
+
+file_1_keywords.sort()
+file_2_keywords.sort()
+
+
+file_1_difference = set(file_2_keywords).difference(file_1_keywords)
+file_2_difference = set(file_1_keywords).difference(file_2_keywords)
+
+#print("*****************Properties not in env.prop file**********************************", file_2_difference)
+
+env_file = open('environment.properties', 'a')
+env_file_op = open('environment_op.properties', 'w')     
+for val in file_2_difference:
+    commonxml = ET.parse("cbc-osb-common.xml")
+    namefinderinxml = commonxml.find(".//*[name='"+val+"']")
+    env_file.writelines(namefinderinxml.find('name').text+'='+namefinderinxml.find('value').text)
+    env_file.write("\n")
+    env_file_op.writelines(namefinderinxml.find('name').text+'='+namefinderinxml.find('value').text)
+    env_file_op.write("\n")
+    splitting = namefinderinxml.find('value').text.split("${")
+    if len(splitting) > 1:
+        for index, splitter in enumerate(splitting):
+            if index > 0:
+                devxml = ET.parse("cbc-service-cbc-osb-dev01.xml")
+                namefinderindevxml = devxml.find(".//*[name='"+splitting[index][:-1]+"']")
+                if namefinderindevxml:
+                    env_file.writelines(namefinderindevxml.find('name').text+'='+namefinderindevxml.find('value').text)
+                    env_file.write("\n")
+                    env_file_op.writelines(namefinderindevxml.find('name').text+'='+namefinderindevxml.find('value').text)
+                    env_file_op.write("\n")
+        for index, splitter in enumerate(splitting):
+            if index > 0:
+                sercomxml = ET.parse("cbc-service-cbc-osb-common.xml")
+                namefinderinsercomxml = sercomxml.find(".//*[name='"+splitting[index][:-1]+"']")
+                if namefinderinsercomxml:
+                    env_file.writelines(namefinderinsercomxml.find('name').text+'='+namefinderinsercomxml.find('value').text)
+                    env_file.write("\n")
+                    env_file_op.writelines(namefinderinsercomxml.find('name').text+'='+namefinderinsercomxml.find('value').text)
+                    env_file_op.write("\n")
+        for index, splitter in enumerate(splitting):
+            if index > 0:
+                cbcosbdevxml = ET.parse("cbc-osb-dev01.xml")
+                namefinderincbcosbdevxml = cbcosbdevxml.find(".//*[name='"+splitting[index][:-1]+"']")
+                if namefinderincbcosbdevxml:
+                    env_file.writelines(namefinderincbcosbdevxml.find('name').text+'='+namefinderincbcosbdevxml.find('value').text)
+                    env_file.write("\n")
+                    env_file_op.writelines(namefinderincbcosbdevxml.find('name').text+'='+namefinderincbcosbdevxml.find('value').text)
+                    env_file_op.write("\n")
+        print("splitting", len(splitting))
+
+env_file.close()
+env_file_op.close()
+
+with open('properties-not-in-env.txt', mode= 'wt', encoding='utf-8') as f2d:
+    f2d.write('\n'.join(str(line) for line in file_2_difference))
