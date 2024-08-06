@@ -1,0 +1,152 @@
+Based on your requirements, I'll update the `resolve_properties` function to add option 3 to log the missing properties to a new file. Here’s how we can integrate the provided script into the `resolve_properties` and `output_properties` functions and the main `runme.py` file:
+
+### Updated `resolve_properties` Function in `src/parser.py`:
+
+```python
+import os
+from xml.etree import ElementTree as ET
+
+def resolve_properties(application_properties, environment_properties, xml_files):
+    combined_properties = {}
+    missing_properties = set()
+    removed_properties = set()
+
+    app_properties_keywords = set()
+    env_properties_keywords = set()
+
+    # Check for properties in application_properties not found in environment_properties
+    for key, value in application_properties.items():
+        if value.startswith('${'):
+            ref_key = value[2:-1]  # Extract the key within ${}
+            app_properties_keywords.add(ref_key)
+            found = False
+            for xml_name, xml_root in xml_files.items():
+                element = xml_root.find(f".//*[name='{ref_key}']")
+                if element is not None:
+                    value = element.find('value').text
+                    combined_properties[key] = value
+                    found = True
+                    break
+            if not found:
+                if ref_key in environment_properties:
+                    combined_properties[key] = environment_properties[ref_key]
+                else:
+                    missing_properties.add(key)
+        else:
+            combined_properties[key] = value
+
+    # Collect environment properties keywords
+    for key in environment_properties:
+        env_properties_keywords.add(key)
+
+    # Check for properties in environment_properties not used in application_properties
+    for key in environment_properties:
+        if key not in application_properties:
+            removed_properties.add(key)
+
+    return combined_properties, missing_properties, removed_properties
+```
+
+### Updated `output_properties` Function in `src/utils.py`:
+
+```python
+def output_properties(mode, properties, missing_properties=None, removed_properties=None):
+    if mode == 1:
+        # Print to console
+        for key, value in properties.items():
+            print(f"{key}: {value}")
+    elif mode == 2:
+        # Write to properties file
+        with open('output_properties.properties', 'w') as f:
+            for key, value in properties.items():
+                f.write(f"{key}={value}\n")
+    elif mode == 3:
+        # Write missing properties to log file
+        if missing_properties:
+            with open('missing_properties.log', 'w') as f:
+                for key in missing_properties:
+                    f.write(f"{key}\n")
+    elif mode == 4:
+        # Write removed properties to log file
+        if removed_properties:
+            with open('removed_properties.log', 'w') as f:
+                for key in removed_properties:
+                    f.write(f"{key}\n")
+```
+
+### Updated `runme.py`:
+
+```python
+from xml.etree import ElementTree as ET
+from src.parser import read_properties_file, load_xml_files, resolve_properties
+from src.utils import output_properties
+
+def main():
+    # Read properties files
+    application_properties = read_properties_file('application.properties')
+    environment_properties = read_properties_file('environment.properties')
+
+    # Load XML files
+    xml_files = load_xml_files('xml_files')
+
+    # Resolve properties
+    combined_properties, missing_properties, removed_properties = resolve_properties(
+        application_properties, environment_properties, xml_files)
+
+    # Output properties (change the mode as needed)
+    output_properties(1, combined_properties)
+    output_properties(3, combined_properties, missing_properties=missing_properties)
+    output_properties(4, combined_properties, removed_properties=removed_properties)
+
+if __name__ == '__main__':
+    main()
+```
+
+### Example Properties Files:
+
+`application.properties`:
+```properties
+key1=value1
+key2=${value2}
+key3=${value3}
+```
+
+`environment.properties`:
+```properties
+value2=env_value2
+value3=env_value3
+key4=env_value4
+```
+
+### XML Files:
+
+`xml_files/cbc-osb-common.xml`:
+```xml
+<root>
+    <property>
+        <name>value2</name>
+        <value>xml_value2</value>
+    </property>
+    <property>
+        <name>value3</name>
+        <value>xml_value3</value>
+    </property>
+</root>
+```
+
+### Running the Script:
+
+1. Ensure your project structure is correctly set up.
+2. Place the `application.properties`, `environment.properties`, and XML files as shown above.
+3. Run the script:
+
+```sh
+python runme.py
+```
+
+### Resulting Log Files:
+
+- `missing_properties.log` will list properties that are in `application.properties` but not in `environment.properties`.
+- `removed_properties.log` will list properties that are in `environment.properties` but not used in `application.properties`.
+
+This setup ensures minimal code changes while adding the functionality you need.
